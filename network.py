@@ -82,26 +82,23 @@ class NeuralNetwork:
         # return the n_mat for the last layer
         return self.n_mat[-1]
 
-    def evaluate_timed(self, input: np.ndarray) -> np.ndarray:
-        
-        _s = time.time()
-        output = self.evaluate(input)
-        _e = time.time()
-
-        print("evaluated network in", (_e - _s), "sec")
-
-        return output
-
-    def train_batch(self, data_batch: list) -> float:
+    def evaluate_timed(self, input: np.ndarray, with_loss: bool = False, **kwargs) -> tuple:
         """
-        Trains the neural network using backpropagation, and returns the average of the loss function applied across all training data.
+        See `evaluate` for arguments. Evaluates the input like `evaluate`, but also returns how long the evaluation took.
 
-        data: list of tuples like ((`np.ndarray`) input, (`int`) class_label)
+        Returns a tuple like (`np.ndarray`, `float`) where index 0 is the output, and index 1 is the evaluation time in seconds.
+        If `with_loss` is True, index 2 of the tuple will be like `float` containing the loss, and you will need to specify the `class_label` argument.
         """
-        train_n = len(data_batch)
-        
-        loss_scores = np.zeros((1, train_n)) # the loss of each training item, of length 
-        
+
+        if not with_loss:
+            _s = time.time()
+            output = self.evaluate(input)
+            return (output, (time.time() - _s))
+        else:
+            _s = time.time()
+            output = self.evaluate_with_loss(input, kwargs.get('class_label'))
+            return (output[0], (time.time() - _s), output[1])
+
     def evaluate_with_loss(self, input: np.ndarray, class_label: int) -> tuple:
         """
         Computes the output of the network, as well as the loss (or cost) associated with the input.
@@ -112,17 +109,47 @@ class NeuralNetwork:
         # compute the loss of the network using the Mean Square Error (MSE)
         observed: np.ndarray = self.evaluate(input) # evaluate the network's output
         predicted: np.ndarray = np.zeros(observed.shape) # set all labels to 0
-        predicted[class_label] = 1.00 # set the correct label prediction to 1
+        predicted[0][class_label] = 1.00 # set the correct label prediction to 1
         
-        loss = (observed-predicted) ** 2
+        loss_mat = (observed-predicted) ** 2
+        loss = np.sum(loss_mat) / len(observed)
 
-        return (observed, loss)    
+        return (observed, loss)
+
+    def train_batch(self, data_batch: list) -> float:
+        """
+        Trains the neural network using backpropagation, and returns the average of the loss function applied across all training data.
+
+        data: list of tuples like ((`np.ndarray`) input, (`int`) class_label)
+        """
+        train_n = len(data_batch)
+        
+        loss_scores = np.zeros((1, train_n)) # the loss of each training item, of length 
+
+        # FIXME we should take a loss function in as an argument, instead of using MSE by default
+
+        # evaluate each sample in the batch, computing its loss
+        for i, (input, class_label) in enumerate(data_batch):
+            # evaluate the network with loss
+            _, loss = self.evaluate_with_loss(input, class_label)
+            loss_scores[i] = loss
+        
+        # compute the MSE
+        mse = np.average(loss_scores)
+
+    def _backpropagation_SGD_helper(self, mse):
+        """
+        Performs backpropagation using a stochastic gradient descent.
+        equal to the partial derivative of the loss function with respect
+        to the weights `w_mat`.
+        """
+        pass
 
 class FCNeuralNetwork(NeuralNetwork):
 
     def __init__(self, structure: list) -> None:
         """
-        Create a new perceptron network with full connectivity.
+        Create a new neural network with full connectivity.
 
         structure: a list of tuples of the form (numNodes, actFunc)
         i.e. for a network with 100 inputs, 10 outputs, and 2 hidden layers

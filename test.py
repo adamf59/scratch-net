@@ -27,6 +27,12 @@ input = np.array([
     0.53, 0.49, 0.57, 0.93, 0.99, 0.05, 0.33, 0.69, 0.13, 0.78
     ])
 
-print(network.evaluate_timed(input))
+
+output, time, loss = network.evaluate_timed(input, with_loss=True, class_label=2)
+
+print("evaluated network in", time, "sec")
+print(output.tolist())
+print("loss:", loss)
+
 
 
